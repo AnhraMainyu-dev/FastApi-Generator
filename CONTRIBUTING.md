@@ -65,6 +65,18 @@ pre-commit installed at .git/hooks/pre-commit
 git commit -m 'Message' --no-verify
 ```
 
+### Подключение фронтенда
+
+Для начала нужно скачать [архив](https://dvmn.org/filer/canonical/1750917110/1035/) с файлами фронта и распаковать его содержимое в папку
+static.
+
+Затем с оздайте внутри папки файл frontend-settings.json и вставьте следующую настройку:
+```json lines
+{
+    "backendBaseUrl": "/frontend-api"
+}
+```
+
 ## Как вести разработку
 
 [Схема](docs/backend_prod_installation.png) prod-инсталляции.
