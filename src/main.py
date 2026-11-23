@@ -1,14 +1,39 @@
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, FastAPI, Path
+import httpx
+from fastapi import APIRouter, FastAPI, Path, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from html_page_generator import AsyncDeepseekClient, AsyncPageGenerator, AsyncUnsplashClient
 from pydantic import BaseModel, ConfigDict, Field
 
+from settings import Settings
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = Settings()
+    app.state.settings = settings
+
+    async with (
+        AsyncDeepseekClient.setup(
+            settings.deepseek.api_key,
+            limits=httpx.Limits(max_connections=settings.deepseek.max_connections),
+        ),
+        AsyncUnsplashClient.setup(
+            settings.unsplash.api_key,
+            timeout=settings.unsplash.timeout,
+            limits=httpx.Limits(max_connections=settings.unsplash.max_connections),
+        ),
+    ):
+        yield
+
+
 api_router = APIRouter(prefix="/frontend-api")
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 SiteTitle = Annotated[str, Field(min_length=3, max_length=100, description="Название сайта")]
 
@@ -29,16 +54,20 @@ class UserProfile(BaseModel):
     email: str = Field(..., description="Электронный адрес")
     isActive: bool = Field(..., description="Статус")
 
-    model_config = ConfigDict(json_schema_extra={
-        "examples": [{
-            "email": "example@example.com",
-            "isActive": True,
-            "profileId": "1",
-            "registeredAt": "2025-06-15T18:29:56+00:00",
-            "updatedAt": "2025-06-15T18:29:56+00:00",
-            "username": "user125",
-        }],
-    })
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "email": "example@example.com",
+                    "isActive": True,
+                    "profileId": "1",
+                    "registeredAt": "2025-06-15T18:29:56+00:00",
+                    "updatedAt": "2025-06-15T18:29:56+00:00",
+                    "username": "user125",
+                },
+            ],
+        },
+    )
 
 
 class CreateSiteRequest(BaseModel):
@@ -73,7 +102,7 @@ mock_user = {
     "updatedAt": "2025-06-15T18:29:56+00:00",
     "username": "user124",
     "trash_info": "secret_code",
-    }
+}
 
 
 @api_router.get("/hello")
@@ -105,11 +134,13 @@ async def create_site(request: CreateSiteRequest):
 
 @api_router.post("/sites/{site_id}/generate")
 async def generate_site(
-    request: SiteGenerationRequest,
+    request_validated_data: SiteGenerationRequest,
+    full_request: Request,
     site_id: int = Path(..., gt=0, description="ID сайта"),
 ):
+    generator = AsyncPageGenerator(debug_mode=full_request.app.state.settings.debug)
     return StreamingResponse(
-        generate_html(),
+        generator(request_validated_data.prompt),
         media_type="text/html; charset=utf-8",
     )
 
