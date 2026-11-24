@@ -1,7 +1,5 @@
-import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Annotated
 
 import aioboto3
 import httpx
@@ -11,7 +9,6 @@ from fastapi.staticfiles import StaticFiles
 from furl import furl
 from gotenberg_api import GotenbergServerError, ScreenshotHTMLRequest
 from html_page_generator import AsyncDeepseekClient, AsyncPageGenerator, AsyncUnsplashClient
-from pydantic import BaseModel, ConfigDict, Field
 
 from minio import (
     find_free_id,
@@ -21,6 +18,7 @@ from minio import (
     upload_prompt_and_title,
     upload_screenshot,
 )
+from models import CreateSiteRequest, SiteGenerationRequest, SiteResponse, SitesListResponse, UserProfile
 from settings import Settings
 
 
@@ -61,16 +59,6 @@ async def lifespan(app: FastAPI):
 api_router = APIRouter(prefix="/frontend-api")
 app = FastAPI(lifespan=lifespan)
 
-SiteTitle = Annotated[str, Field(min_length=3, max_length=100, description="Название сайта")]
-
-
-async def generate_html(chunk_size: int = 200):
-    with open("static/mock.html", encoding="utf-8") as f:
-        html = f.read()
-    for i in range(0, len(html), chunk_size):
-        yield html[i : (i + chunk_size)]
-        await asyncio.sleep(0.1)
-
 
 async def generate_screenshot(client, html: str) -> bytes:
     request = ScreenshotHTMLRequest(
@@ -84,54 +72,6 @@ async def generate_screenshot(client, html: str) -> bytes:
     except GotenbergServerError:
         screenshot_bytes = None
     return screenshot_bytes
-
-
-class UserProfile(BaseModel):
-    username: str = Field(..., description="Юзернейм")
-    updatedAt: datetime = Field(..., description="Дата обновления")
-    registeredAt: datetime = Field(..., description="Дата регистрации")
-    profileId: str = Field(..., description="ID профиля")
-    email: str = Field(..., description="Электронный адрес")
-    isActive: bool = Field(..., description="Статус")
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "examples": [
-                {
-                    "email": "example@example.com",
-                    "isActive": True,
-                    "profileId": "1",
-                    "registeredAt": "2025-06-15T18:29:56+00:00",
-                    "updatedAt": "2025-06-15T18:29:56+00:00",
-                    "username": "user125",
-                },
-            ],
-        },
-    )
-
-
-class CreateSiteRequest(BaseModel):
-    title: SiteTitle | None = Field(None, description="Название сайта")
-    prompt: str = Field(..., description="Промт для генерации сайта")
-
-
-class SiteGenerationRequest(BaseModel):
-    prompt: str = Field(..., description="Промт для генерации сайта")
-
-
-class SiteResponse(BaseModel):
-    id: int
-    title: SiteTitle
-    htmlCodeUrl: str | None
-    htmlCodeDownloadUrl: str | None
-    screenshotUrl: str | None
-    prompt: str
-    createdAt: datetime
-    updatedAt: datetime
-
-
-class SitesListResponse(BaseModel):
-    sites: list[SiteResponse]
 
 
 async def load_site(client, minio, site_id: int) -> dict:
@@ -167,11 +107,6 @@ mock_user = {
     "username": "user124",
     "trash_info": "secret_code",
 }
-
-
-@api_router.get("/hello")
-async def hello():
-    return {"message": "Привет из бекенда!"}
 
 
 @api_router.get("/users/me")
