@@ -35,23 +35,23 @@ DEEPSEEK__MAX_CONNECTIONS=[Максимальное количество под�
 
 UNSPLASH__API_KEY=[Access-ключ дипсика]
 UNSPLASH__MAX_CONNECTIONS=[Максимальное количество подключений одновременно]
-UNSPLASH__TIMEOUT=[Время ожидания ответа от сервиса]
+UNSPLASH__TIMEOUT=[Максимальное время ожидания ответа от сервиса]
 
 MINIO__ENDPOINT=http://127.0.0.1:9000
 MINIO__ACCESS_KEY=[Идентификатор ключа доступа, он же логин для авторизации]
 MINIO__SECRET_KEY=[Секретный ключ доступа, он же пароль для авторизации]
 MINIO__REGION_NAME=[Имя региона, которое клиент использует при подписи запросов]
 MINIO__BUCKET=[Имя bucket-а в сервисе]
-MINIO__TIMEOUT=[Время ожидания ответа от сервиса]
+MINIO__TIMEOUT=[Максимальное время ожидания ответа от сервиса]
 MINIO__READING_TIMEOUT=[Максимальное время чтения ответа от сервиса]
 MINIO__MAX_CONNECTIONS=[Максимальное количество подключений одновременно]
 
 GOTENBERG__BASE_URL=https://demo.gotenberg.dev
 GOTENBERG__SCREENSHOT_WIDTH=[Ширина изображения в пикселях]
 GOTENBERG__SCREENSHOT_FORMAT=[Расширение изображения]
-GOTENBERG__WAIT_DELAY=[Время ожидания ответа от сервиса]
+GOTENBERG__WAIT_DELAY=[Задержка перед созданием скриншота]
 GOTENBERG__MAX_CONNECTIONS=[Максимальное количество подключений одновременно]
-GOTENBERG__TIMEOUT=[Задержка перед созданием скриншота]
+GOTENBERG__TIMEOUT=[Максимальное время ожидания ответа от сервиса]
 GOTENBERG__ANIMATION_TIMEOUT=[Максимальное время ожидания ответа от сервиса]
 ```
 Для скриншотов приложение использует Demo API Gotenberg.
@@ -70,7 +70,7 @@ GOTENBERG__ANIMATION_TIMEOUT=[Максимальное время ожидани
 
 ### Подключите фронтенд и запустите сервер
 
-Скачайте [готовую сборку фронтенда](https://dvmn.org/filer/canonical/1750917110/1035/) и распакуйте её в `static/`, чтобы `index.html` оказался в `static/index.html`. Создайте `static/frontend-settings.json`:
+Скачайте [готовую сборку фронтенда](https://dvmn.org/filer/canonical/1750917110/1035/) и распакуйте её содержимое в `static/`, чтобы `index.html` оказался в `static/index.html`. Создайте `static/frontend-settings.json`:
 
 ```json
 {
