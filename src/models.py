@@ -42,6 +42,7 @@ class SiteGenerationRequest(BaseModel):
 class SiteResponse(BaseModel):
     id: int
     title: SiteTitle
+    urlPath: str = ""
     htmlCodeUrl: str | None
     htmlCodeDownloadUrl: str | None
     screenshotUrl: str | None

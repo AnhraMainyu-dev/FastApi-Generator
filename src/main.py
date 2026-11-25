@@ -84,7 +84,7 @@ mock_user = {
 
 
 @api_router.get("/users/me")
-async def info():
+async def get_current_user():
     profile = UserProfile(**mock_user)
     return profile
 
@@ -152,12 +152,12 @@ async def generate_site(
 async def show_my_sites(
     full_request: Request,
 ):
-    site = await site_response(full_request, 1)
+    site = await get_site(full_request, 1)
     return {"sites": [site]}
 
 
 @api_router.get("/sites/{site_id}", response_model=SiteResponse)
-async def site_response(
+async def get_site(
     full_request: Request,
     site_id: int = Path(..., gt=0, description="ID сайта"),
 ):

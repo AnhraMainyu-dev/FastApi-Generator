@@ -50,13 +50,3 @@ async def read_text_from_minio(client, bucket: str, key: str) -> str:
         content = await body.read()
 
     return content.decode("utf-8")
-
-
-async def get_screenshot_from_minio(client, bucket: str, key: str) -> str:
-    response = await client.get_object(Bucket=bucket, Key=key)
-    body = response["Body"]
-
-    async with body:
-        content = await body.read()
-
-    return content
