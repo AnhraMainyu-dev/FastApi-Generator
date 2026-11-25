@@ -6,12 +6,10 @@ import httpx
 from fastapi import APIRouter, FastAPI, Path, Request
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from furl import furl
 from gotenberg_api import GotenbergServerError, ScreenshotHTMLRequest
 from html_page_generator import AsyncDeepseekClient, AsyncPageGenerator, AsyncUnsplashClient
 
 from minio import (
-    find_free_id,
     make_download_url,
     read_text_from_minio,
     upload_html,
@@ -60,42 +58,18 @@ api_router = APIRouter(prefix="/frontend-api")
 app = FastAPI(lifespan=lifespan)
 
 
-async def generate_screenshot(client, html: str) -> bytes:
+async def generate_screenshot(client, html: str, width: int, screenshot_format: str, wait_delay: int) -> bytes:
     request = ScreenshotHTMLRequest(
         index_html=html,
-        width=1000,
-        format="png",
-        wait_delay=5,
+        width=width,
+        format=screenshot_format,
+        wait_delay=wait_delay,
     )
     try:
         screenshot_bytes = await request.asend(client)
     except GotenbergServerError:
         screenshot_bytes = None
     return screenshot_bytes
-
-
-async def load_site(client, minio, site_id: int) -> dict:
-    request_time = datetime.now()
-    bucket = minio.settings.minio.bucket
-    endpoint = minio.settings.minio.endpoint
-
-    url = f"{endpoint}/{bucket}/sites/{site_id}/index_{site_id}.html"
-    download_url = make_download_url(url)
-
-    title = await read_text_from_minio(client, bucket, f"{site_id}_title.txt")
-    prompt = await read_text_from_minio(client, bucket, f"{site_id}_prompt.txt")
-    screenshot_url = f"{endpoint}/{bucket}/sites/{site_id}/screenshot_{site_id}.png"
-
-    return {
-        "id": site_id,
-        "title": title,
-        "prompt": prompt,
-        "htmlCodeUrl": url,
-        "htmlCodeDownloadUrl": download_url,
-        "screenshotUrl": screenshot_url,
-        "createdAt": request_time,
-        "updatedAt": request_time,
-    }
 
 
 mock_user = {
@@ -116,13 +90,10 @@ async def info():
 
 
 @api_router.post("/sites/create", response_model=SiteResponse)
-async def create_site(request: CreateSiteRequest, full_request: Request):
+async def create_site(request: CreateSiteRequest):
     request_time = datetime.now()
-    state = full_request.app.state
-    site_id = await find_free_id(state.minio_client, state.settings.minio.bucket)
-
     return {
-        "id": site_id,
+        "id": 1,
         "title": request.title or "Новый сайт",
         "urlPath": "",
         "prompt": request.prompt,
@@ -149,8 +120,16 @@ async def generate_site(
             yield chunk
 
         bucket = full_request.app.state.settings.minio.bucket
+        gotenberg = full_request.app.state.settings.gotenberg
+        screenshot_format = gotenberg.screenshot_format
         title = generator.html_page.title
-        screenshot = await generate_screenshot(gotenberg_client, generator.html_page.html_code)
+        screenshot = await generate_screenshot(
+            gotenberg_client,
+            generator.html_page.html_code,
+            gotenberg.screenshot_width,
+            screenshot_format,
+            gotenberg.wait_delay,
+        )
 
         await upload_prompt_and_title(
             client,
@@ -159,8 +138,9 @@ async def generate_site(
             request_validated_data.prompt,
             title,
         )
-        await upload_screenshot(client, site_id, screenshot)
-        await upload_html(client, site_id, generator.html_page.html_code)
+        if screenshot is not None:
+            await upload_screenshot(client, bucket, site_id, screenshot, screenshot_format)
+        await upload_html(client, bucket, site_id, generator.html_page.html_code)
 
     return StreamingResponse(
         generate_and_upload(),
@@ -172,25 +152,8 @@ async def generate_site(
 async def show_my_sites(
     full_request: Request,
 ):
-    state = full_request.app.state
-    client = full_request.app.state.minio_client
-    bucket = state.settings.minio.bucket
-    response = await client.list_objects_v2(Bucket=bucket, Prefix="sites/")
-    site_paths = response.get("Contents", [])
-    site_ids = []
-    sites = []
-
-    for path in site_paths:
-        site_id = path['Key']
-        if not site_id.endswith(".html"):
-            continue
-        site_ids.append(int(furl(site_id).path.segments[1]))
-
-    for site_id in site_ids:
-        site = await load_site(client, state, site_id)
-        sites.append(site)
-
-    return {"sites": sites}
+    site = await site_response(full_request, 1)
+    return {"sites": [site]}
 
 
 @api_router.get("/sites/{site_id}", response_model=SiteResponse)
@@ -201,7 +164,28 @@ async def site_response(
     state = full_request.app.state
     client = full_request.app.state.minio_client
 
-    return await load_site(client, state, site_id)
+    request_time = datetime.now()
+    bucket = state.settings.minio.bucket
+    endpoint = state.settings.minio.endpoint
+
+    url = f"{endpoint}/{bucket}/sites/{site_id}/index_{site_id}.html"
+    download_url = make_download_url(url)
+
+    title = await read_text_from_minio(client, bucket, f"{site_id}_title.txt")
+    prompt = await read_text_from_minio(client, bucket, f"{site_id}_prompt.txt")
+    screenshot_format = state.settings.gotenberg.screenshot_format
+    screenshot_url = f"{endpoint}/{bucket}/sites/{site_id}/screenshot_{site_id}.{screenshot_format}"
+
+    return {
+        "id": site_id,
+        "title": title,
+        "prompt": prompt,
+        "htmlCodeUrl": url,
+        "htmlCodeDownloadUrl": download_url,
+        "screenshotUrl": screenshot_url,
+        "createdAt": request_time,
+        "updatedAt": request_time,
+    }
 
 
 app.include_router(api_router)
